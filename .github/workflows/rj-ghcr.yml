@@ -1,0 +1,91 @@
+# Fork-only: build and push the image to GHCR for tags like v1.0.0-rc.51-rj.1.
+# Upstream docker-build.yml pushes to Docker Hub with upstream secrets and is disabled in this fork.
+name: Publish fork image (GHCR)
+
+on:
+  push:
+    tags:
+      - 'v*-rj.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build (e.g. v1.0.0-rc.51-rj.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rj-ghcr-${{ github.event.inputs.tag && format('refs/tags/{0}', github.event.inputs.tag) || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      INPUT_TAG: ${{ github.event.inputs.tag }}
+    steps:
+      - name: Resolve tag
+        run: |
+          TAG="${INPUT_TAG:-${GITHUB_REF#refs/tags/}}"
+          if ! [[ "$TAG" =~ ^v[0-9A-Za-z.-]+-rj\.[0-9]+$ ]]; then
+            echo "::error::Invalid tag '$TAG' (expected v...-rj.N)"
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          persist-credentials: false
+
+      - name: Write VERSION
+        run: echo "$TAG" > VERSION
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (labels)
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          labels: org.opencontainers.image.version=${{ env.TAG }}
+
+      # shortcut: amd64 only (the target VPS is x86_64), add linux/arm64 if an ARM host is needed.
+      - name: Build & push
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ env.TAG }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=rj-ghcr
+          cache-to: type=gha,scope=rj-ghcr,mode=max
+
+      - name: Image summary
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo '### Image'
+            echo '```'
+            echo "${IMAGE}:${TAG}"
+            echo "$DIGEST"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
