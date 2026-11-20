@@ -36,11 +36,26 @@ if [ ! -f .env ]; then
   umask 077
   printf 'SESSION_SECRET=%s\nNEW_API_TAG=%s\n' "$(openssl rand -hex 32)" "$TAG" > .env
 fi
+OLD="$(sed -n 's/^NEW_API_TAG=//p' .env)"
+if [ -n "$OLD" ] && [ "$OLD" != "$TAG" ]; then
+  # Remember the version being replaced so cleanup keeps it as the rollback image.
+  if grep -q '^PREV_NEW_API_TAG=' .env; then
+    sed -i "s|^PREV_NEW_API_TAG=.*|PREV_NEW_API_TAG=$OLD|" .env
+  else
+    echo "PREV_NEW_API_TAG=$OLD" >> .env
+  fi
+fi
 sed -i "s|^NEW_API_TAG=.*|NEW_API_TAG=$TAG|" .env
 docker compose up -d
 for _ in $(seq 1 30); do
   if curl -fs http://127.0.0.1:18500/api/status | grep -q "\"version\":\"$TAG\""; then
     echo "OK: new-api $TAG is up on 127.0.0.1:18500"
+    # Keep only the running and the previous version; touch no other repository.
+    PREV="$(sed -n 's/^PREV_NEW_API_TAG=//p' .env)"
+    docker image ls rjnetwork212/new-api --format '{{.Tag}}' | while read -r t; do
+      case "$t" in "$TAG"|"$PREV"|"<none>") continue ;; esac
+      docker rmi "rjnetwork212/new-api:$t" || echo "kept rjnetwork212/new-api:$t (in use)" >&2
+    done
     exit 0
   fi
   sleep 2
