@@ -1,0 +1,26 @@
+# Fork-only: runtime for the VPS, copied to /opt/new-api/docker-compose.yml by bin/rj-deploy.sh.
+# SQLite in ./data, dashboard bound to localhost only (reach it through an SSH tunnel).
+services:
+  new-api:
+    image: rjnetwork212/new-api:${NEW_API_TAG:?set NEW_API_TAG in .env}
+    container_name: new-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18500:3000"
+    env_file: .env
+    environment:
+      TZ: Asia/Jakarta
+      ERROR_LOG_ENABLED: "true"
+    volumes:
+      - ./data:/data
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -q '\"success\":true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
