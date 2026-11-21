@@ -698,6 +698,13 @@ func TestUpdateUserSettingKeepsWhatTheRequestLeavesOut(t *testing.T) {
 			want:        kept(dto.UserSetting{NotifyType: dto.NotifyTypeEmail, QuotaWarningEnabled: &on, ChannelNotifyEnabled: &on, UpstreamModelUpdateNotifyEnabled: true}),
 		},
 		{
+			name:        "user cannot opt in to billing for unpriced models",
+			role:        common.RoleCommonUser,
+			body:        `{"notify_type":"email","accept_unset_model_ratio_model":true}`,
+			wantSuccess: true,
+			want:        kept(dto.UserSetting{NotifyType: dto.NotifyTypeEmail, QuotaWarningEnabled: &off, ChannelNotifyEnabled: &on, UpstreamModelUpdateNotifyEnabled: true}),
+		},
+		{
 			name: "negative threshold",
 			role: common.RoleCommonUser,
 			body: `{"notify_type":"email","quota_warning_threshold":-1}`,

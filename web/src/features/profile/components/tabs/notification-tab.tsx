@@ -417,25 +417,27 @@ export function NotificationTab({
           </p>
         </div>
 
-        {/* Accept Unset Model Price */}
-        <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
-          <div className='space-y-0.5'>
-            <Label htmlFor='acceptUnsetPrice'>
-              {t('Accept Unpriced Models')}
-            </Label>
-            <p className='text-muted-foreground text-xs sm:text-sm'>
-              {t('Allow using models without price configuration')}
-            </p>
+        {/* Accept Unset Model Price: administrators only, the server ignores it for other roles */}
+        {isAdmin && (
+          <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
+            <div className='space-y-0.5'>
+              <Label htmlFor='acceptUnsetPrice'>
+                {t('Accept Unpriced Models')}
+              </Label>
+              <p className='text-muted-foreground text-xs sm:text-sm'>
+                {t('Allow using models without price configuration')}
+              </p>
+            </div>
+            <Switch
+              id='acceptUnsetPrice'
+              className='shrink-0'
+              checked={settings.accept_unset_model_ratio_model}
+              onCheckedChange={(checked) =>
+                updateField('accept_unset_model_ratio_model', checked)
+              }
+            />
           </div>
-          <Switch
-            id='acceptUnsetPrice'
-            className='shrink-0'
-            checked={settings.accept_unset_model_ratio_model}
-            onCheckedChange={(checked) =>
-              updateField('accept_unset_model_ratio_model', checked)
-            }
-          />
-        </div>
+        )}
       </div>
 
       {/* Save Button */}

@@ -25,12 +25,17 @@ docker build --platform linux/amd64 -t "$IMAGE" "$WORK"
 echo "Shipping $IMAGE to $HOST ..."
 docker save "$IMAGE" | gzip | ssh "$HOST" 'gunzip | docker load'
 scp -q bin/rj-compose.yml "$HOST:/tmp/new-api-compose.yml"
+scp -q bin/rj-backup.sh "$HOST:/tmp/new-api-backup.sh"
 
 ssh "$HOST" TAG="$TAG" DIR="$REMOTE_DIR" bash -s <<'REMOTE'
 set -euo pipefail
 mkdir -p "$DIR/data"
 cd "$DIR"
 install -m 644 /tmp/new-api-compose.yml docker-compose.yml && rm -f /tmp/new-api-compose.yml
+install -m 700 /tmp/new-api-backup.sh backup.sh && rm -f /tmp/new-api-backup.sh
+# Daily backup at 03:30 server time; the new image may migrate the schema, so also back up before switching.
+echo '30 3 * * * root /opt/new-api/backup.sh daily >/dev/null 2>&1' > /etc/cron.d/new-api-backup
+if [ -f data/one-api.db ]; then ./backup.sh "pre-$TAG"; fi
 if [ ! -f .env ]; then
   # First deploy: secret is generated on the VPS and never leaves it.
   umask 077

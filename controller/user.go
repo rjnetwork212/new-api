@@ -1427,7 +1427,8 @@ func UpdateUserSetting(c *gin.Context) {
 	settings := user.GetSetting()
 	settings.NotifyType = req.QuotaWarningType
 	settings.QuotaWarningThreshold = req.QuotaWarningThreshold
-	settings.AcceptUnsetRatioModel = req.AcceptUnsetModelRatioModel
+	// Billing unpriced models is an operator decision: a customer must not opt in for themselves.
+	settings.AcceptUnsetRatioModel = req.AcceptUnsetModelRatioModel && user.Role >= common.RoleAdminUser
 	settings.RecordIpLog = req.RecordIpLog
 	if req.QuotaWarningEnabled != nil {
 		settings.QuotaWarningEnabled = req.QuotaWarningEnabled
